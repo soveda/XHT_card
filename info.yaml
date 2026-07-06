@@ -1,0 +1,7 @@
+name: THX Card
+author: Adrian Vos
+description: A playable, scrub-able deep-note-inspired stereo swarm with delay and reverb.
+version: 0.1.0
+clock: 192MHz
+language: C++
+card: ComputerCard
