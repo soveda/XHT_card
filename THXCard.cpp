@@ -6,6 +6,7 @@
 namespace {
 constexpr uint32_t kSampleRate = 48000;
 constexpr uint32_t kControlMask = 31;       // controls at 1.5 kHz
+constexpr uint32_t kOneShotStep = 48;       // about 0.9 s for a full-scale sweep
 constexpr int32_t kVoices = 16;
 constexpr int32_t kDelaySize = 16384;       // 341 ms maximum at 48 kHz
 constexpr int32_t kReverbSize = 4096;
@@ -93,16 +94,34 @@ private:
     void __not_in_flash_func(updateControls)(bool p2) {
         const int32_t main = KnobVal(Knob::Main);
         const int32_t cvPos = CVIn2();
-        int32_t pos = (main << 4) + (cvPos << 4);
+        const int32_t manualTarget = (main << 4) + (cvPos << 4);
+        int32_t pos = manualTarget;
 
         p1Connected_ = Connected(Input::Pulse1);
         const bool p2Connected = Connected(Input::Pulse2);
         if (p2Connected) {
             if (p2 && !lastP2_) clockPosition_ += 4096; // sixteen clock steps
             pos = int32_t(clockPosition_);
+            oneShotActive_ = false;
+        } else {
+            oneShotTarget_ = uint32_t(manualTarget < 0 ? 0 : (manualTarget > 65535 ? 65535 : manualTarget));
+            if (oneShotActive_) {
+                if (position_ >= oneShotTarget_) {
+                    position_ = oneShotTarget_;
+                    oneShotActive_ = false;
+                } else {
+                    const uint32_t advanced = position_ + kOneShotStep;
+                    position_ = advanced < oneShotTarget_ ? advanced : oneShotTarget_;
+                    oneShotActive_ = position_ < oneShotTarget_;
+                }
+            } else {
+                pos = manualTarget;
+            }
         }
         lastP2_ = p2;
-        position_ = uint32_t(pos < 0 ? 0 : (pos > 65535 ? 65535 : pos));
+        if (!oneShotActive_ || p2Connected) {
+            position_ = uint32_t(pos < 0 ? 0 : (pos > 65535 ? 65535 : pos));
+        }
 
         // About +/- 4 octaves. Quantised semitones tame the ADC's effective resolution.
         const int32_t semitones = (CVIn1() * 48) >> 11;
@@ -114,7 +133,9 @@ private:
 
         const Switch sw = SwitchVal();
         octaveOffset_ = sw == Switch::Up ? 12 : 0;
-        resetRequested_ = sw == Switch::Down;
+        const bool switchDown = sw == Switch::Down;
+        if (switchDown && !lastSwitchDown_) resetRequested_ = true;
+        lastSwitchDown_ = switchDown;
         if (octaveOffset_) pitchRatioQ16_ <<= 1;
 
         // Calibrated CV calls are control-rate work; their output is held by the framework.
@@ -161,6 +182,8 @@ private:
     void __not_in_flash_func(resetNote)() {
         position_ = 0;
         clockPosition_ = 0;
+        oneShotActive_ = !Connected(Input::Pulse2);
+        oneShotTarget_ = uint32_t(KnobVal(Knob::Main) << 4);
         resetRequested_ = false;
     }
 
@@ -171,10 +194,11 @@ private:
     int16_t delayR_[kDelaySize]{};
     int16_t reverb_[kReverbSize]{};
     uint32_t delayWrite_ = 0, reverbWrite_ = 0, sampleCounter_ = 0;
-    uint32_t position_ = 0, clockPosition_ = 0, pitchRatioQ16_ = 65536;
+    uint32_t position_ = 0, clockPosition_ = 0, pitchRatioQ16_ = 65536, oneShotTarget_ = 0;
     int32_t envelope_ = 32767, delaySamples_ = 4000, reverbAmount_ = 0;
     int32_t pitchMillivolts_ = 0, octaveOffset_ = 0;
     bool p1Connected_ = false, lastP2_ = false, resetRequested_ = false;
+    bool oneShotActive_ = false, lastSwitchDown_ = false;
 };
 
 int main() {
