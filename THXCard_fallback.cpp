@@ -4,19 +4,16 @@
 #include "ComputerCard.h"
 
 namespace {
+constexpr uint32_t kSampleRate = 48000;
 constexpr uint32_t kControlMask = 31;       // controls at 1.5 kHz
+constexpr uint32_t kOneShotStep = 48;       // about 0.9 s for a full-scale sweep
 constexpr int32_t kVoices = 16;
 constexpr int32_t kDelaySize = 16384;       // 341 ms maximum at 48 kHz
 constexpr int32_t kReverbSize = 4096;
 constexpr int32_t kChord[kVoices] = {26,38,50,57,62,69,74,81,62,69,74,81,86,86,90,90};
-constexpr int32_t kStartNotes[kVoices] = {45,52,43,50,47,54,41,56,44,58,39,60,46,63,42,65};
-constexpr uint32_t kDriftSeed[kVoices] = {
-    0x0a65f2d1u, 0x31b4c9f5u, 0x7e4291b3u, 0x19ef6ac7u,
-    0x5d34b271u, 0x24c7dd89u, 0x6b12a45fu, 0x3f98d2b5u,
-    0x11d76e43u, 0x72ab094du, 0x28cf5179u, 0x4cd8e36bu,
-    0x63f19427u, 0x16ac7f91u, 0x55be2083u, 0x2bd963ddu
-};
 
+// Q0.32 phase increments for MIDI notes 0..127 at 48 kHz. Generated once at
+// compile time without putting floating point anywhere in the audio loop.
 constexpr uint32_t kSemitoneRatioQ30 = 1137589835u; // 2^(1/12) * 2^30
 constexpr uint32_t kA4Increment = 39370534u;        // 440 * 2^32 / 48000
 
@@ -42,21 +39,15 @@ inline int32_t __not_in_flash_func(saw)(uint32_t phase) {
 inline int32_t __not_in_flash_func(clamp12)(int32_t x) {
     return x < -2048 ? -2048 : (x > 2047 ? 2047 : x);
 }
-
-inline uint32_t __not_in_flash_func(lcgStep)(uint32_t value) {
-    return value * 1664525u + 1013904223u;
-}
 }
 
-class THXCardDense final : public ComputerCard {
+class THXCard final : public ComputerCard {
 public:
-    THXCardDense() {
+    THXCard() {
         for (int32_t i = 0; i < kVoices; ++i) {
             phase_[i] = 0x9e3779b9u * uint32_t(i + 1);
-            driftState_[i] = kDriftSeed[i];
-            startInc_[i] = noteIncrement(kStartNotes[i]);
+            startInc_[i] = noteIncrement(45 + ((i * 7) & 15));
             targetInc_[i] = noteIncrement(kChord[i]);
-            glideShape_[i] = uint16_t(32768u + uint32_t(i * 2048));
         }
     }
 
@@ -67,44 +58,34 @@ public:
         if ((sampleCounter_++ & kControlMask) == 0) updateControls(p2);
         if (resetRequested_) resetNote();
 
+        // P1 unpatched: sustain. Patched: its high-time is the note length.
         const bool audible = !p1Connected_ || p1;
         envelope_ += ((audible ? 32767 : 0) - envelope_) >> 7;
 
         int32_t left = 0;
         int32_t right = 0;
         const uint32_t position = position_;
-        const uint32_t pitchRatio = pitchRatioQ16_;
-        const uint32_t density = densityQ16_;
         for (int32_t i = 0; i < kVoices; ++i) {
-            const uint32_t voiceProgress = shapedProgress(position, glideShape_[i]);
             const int64_t delta = int64_t(targetInc_[i]) - int64_t(startInc_[i]);
-            int32_t inc = int32_t(int64_t(startInc_[i]) + ((delta * voiceProgress) >> 16));
-
-            const int32_t residual = int32_t((delta * (65535u - density)) >> 16);
-            driftState_[i] = lcgStep(driftState_[i]);
-            const int32_t jitter = int32_t((driftState_[i] >> 20) & 0x7ff) - 1024;
-            inc += (residual * jitter) >> 13;
-
-            inc = int32_t((int64_t(inc) * pitchRatio) >> 16);
-            phase_[i] += uint32_t(inc);
-
-            int32_t voice = saw(phase_[i]);
-            const int32_t blend = int32_t((uint32_t(jitter + 1024) * (65535u - density)) >> 16);
-            voice = (voice * (2048 - (blend >> 1))) >> 11;
-
-            if (i & 1) right += voice;
-            else left += voice;
+            uint32_t inc = uint32_t(int64_t(startInc_[i]) + ((delta * position) >> 16));
+            inc = uint32_t((uint64_t(inc) * pitchRatioQ16_) >> 16);
+            phase_[i] += inc;
+            const int32_t voice = saw(phase_[i]);
+            if (i & 1) right += voice; else left += voice;
         }
 
         left = (left * envelope_) >> 18;
         right = (right * envelope_) >> 18;
 
+        // Both audio inputs are true stereo effect returns/mix inputs.
         left += AudioIn1() >> 1;
         right += AudioIn2() >> 1;
         processEffects(left, right);
 
         AudioOut1(int16_t(clamp12(left)));
         AudioOut2(int16_t(clamp12(right)));
+
+        // Pitch mirrors: CV1 is one octave above CV2.
         PulseOut1(p1Connected_ ? p1 : audible);
         PulseOut2(p2);
     }
@@ -113,33 +94,51 @@ private:
     void __not_in_flash_func(updateControls)(bool p2) {
         const int32_t main = KnobVal(Knob::Main);
         const int32_t cvPos = CVIn2();
-        int32_t pos = (main << 4) + (cvPos << 4);
+        const int32_t manualTarget = (main << 4) + (cvPos << 4);
+        int32_t pos = manualTarget;
 
         p1Connected_ = Connected(Input::Pulse1);
         const bool p2Connected = Connected(Input::Pulse2);
         if (p2Connected) {
-            if (p2 && !lastP2_) clockPosition_ += 4096;
+            if (p2 && !lastP2_) clockPosition_ += 4096; // sixteen clock steps
             pos = int32_t(clockPosition_);
+            oneShotActive_ = false;
+        } else {
+            oneShotTarget_ = uint32_t(manualTarget < 0 ? 0 : (manualTarget > 65535 ? 65535 : manualTarget));
+            if (oneShotActive_) {
+                if (position_ >= oneShotTarget_) {
+                    position_ = oneShotTarget_;
+                    oneShotActive_ = false;
+                } else {
+                    const uint32_t advanced = position_ + kOneShotStep;
+                    position_ = advanced < oneShotTarget_ ? advanced : oneShotTarget_;
+                    oneShotActive_ = position_ < oneShotTarget_;
+                }
+            } else {
+                pos = manualTarget;
+            }
         }
         lastP2_ = p2;
-        position_ = uint32_t(pos < 0 ? 0 : (pos > 65535 ? 65535 : pos));
+        if (!oneShotActive_ || p2Connected) {
+            position_ = uint32_t(pos < 0 ? 0 : (pos > 65535 ? 65535 : pos));
+        }
 
+        // About +/- 4 octaves. Quantised semitones tame the ADC's effective resolution.
         const int32_t semitones = (CVIn1() * 48) >> 11;
-        pitchMillivolts_ = (semitones * 1000) / 12;
+        pitchMillivolts_ = (semitones * 1000) / 12; // control-rate only
         pitchRatioQ16_ = ratioForSemitones(semitones);
 
-        const int32_t xVal = KnobVal(Knob::X);
-        if (!switchDownHeld_) delaySamples_ = 64 + ((xVal * (kDelaySize - 65)) >> 12);
-        densityQ16_ = uint32_t(KnobVal(Knob::Y)) << 4;
+        delaySamples_ = 64 + ((KnobVal(Knob::X) * (kDelaySize - 65)) >> 12);
+        reverbAmount_ = KnobVal(Knob::Y) << 2;
 
         const Switch sw = SwitchVal();
-        switchDownHeld_ = sw == Switch::Down;
         octaveOffset_ = sw == Switch::Up ? 12 : 0;
-        if (switchDownHeld_) reverbAmount_ = 2048 + (xVal << 3);
-        if (switchDownHeld_ && !lastSwitchDown_) resetRequested_ = true;
-        lastSwitchDown_ = switchDownHeld_;
+        const bool switchDown = sw == Switch::Down;
+        if (switchDown && !lastSwitchDown_) resetRequested_ = true;
+        lastSwitchDown_ = switchDown;
         if (octaveOffset_) pitchRatioQ16_ <<= 1;
 
+        // Calibrated CV calls are control-rate work; their output is held by the framework.
         CVOut1Millivolts(pitchMillivolts_ + 1000);
         CVOut2Millivolts(pitchMillivolts_);
 
@@ -159,11 +158,6 @@ private:
             for (int32_t i = semitones; i < 0; ++i) ratio = uint32_t((uint64_t(ratio) << 30) / kSemitoneRatioQ30);
         }
         return ratio;
-    }
-
-    static uint32_t __not_in_flash_func(shapedProgress)(uint32_t position, uint16_t glideShape) {
-        const uint32_t curved = uint32_t((uint64_t(position) * position) >> 16);
-        return uint32_t(((uint64_t(position) * (65535u - glideShape)) + ((uint64_t(curved) * glideShape) >> 16)) >> 16);
     }
 
     void __not_in_flash_func(processEffects)(int32_t &left, int32_t &right) {
@@ -188,28 +182,28 @@ private:
     void __not_in_flash_func(resetNote)() {
         position_ = 0;
         clockPosition_ = 0;
+        oneShotActive_ = !Connected(Input::Pulse2);
+        oneShotTarget_ = uint32_t(KnobVal(Knob::Main) << 4);
         resetRequested_ = false;
     }
 
     uint32_t phase_[kVoices]{};
-    uint32_t driftState_[kVoices]{};
     uint32_t startInc_[kVoices]{};
     uint32_t targetInc_[kVoices]{};
-    uint16_t glideShape_[kVoices]{};
     int16_t delayL_[kDelaySize]{};
     int16_t delayR_[kDelaySize]{};
     int16_t reverb_[kReverbSize]{};
     uint32_t delayWrite_ = 0, reverbWrite_ = 0, sampleCounter_ = 0;
-    uint32_t position_ = 0, clockPosition_ = 0, pitchRatioQ16_ = 65536, densityQ16_ = 65535;
-    int32_t envelope_ = 32767, delaySamples_ = 4000, reverbAmount_ = 12288;
+    uint32_t position_ = 0, clockPosition_ = 0, pitchRatioQ16_ = 65536, oneShotTarget_ = 0;
+    int32_t envelope_ = 32767, delaySamples_ = 4000, reverbAmount_ = 0;
     int32_t pitchMillivolts_ = 0, octaveOffset_ = 0;
     bool p1Connected_ = false, lastP2_ = false, resetRequested_ = false;
-    bool switchDownHeld_ = false, lastSwitchDown_ = false;
+    bool oneShotActive_ = false, lastSwitchDown_ = false;
 };
 
 int main() {
     set_sys_clock_khz(192000, true);
-    static THXCardDense card;
+    static THXCard card;
     card.EnableNormalisationProbe();
     card.Run();
 }
