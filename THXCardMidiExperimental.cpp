@@ -323,9 +323,10 @@ private:
         lastSwitchDown_ = switchDown;
         if (octaveOffset_)
             pitchRatioQ16_ <<= 1;
+        pitchMillivolts_ = ((semitones + octaveOffset_) * 1000) / 12;
 
         const int32_t positionMillivolts = positionToMillivolts(position_);
-        CVOut1Millivolts(positionMillivolts);
+        CVOut1Millivolts(Connected(Input::CV1) ? pitchMillivolts_ : positionMillivolts);
         CVOut2Millivolts(positionMillivolts);
 
         LedBrightness(0, uint16_t(position_ >> 4));
@@ -409,6 +410,7 @@ private:
     uint16_t comb1Write_ = 0, comb2Write_ = 0, comb3Write_ = 0, allpass1Write_ = 0, allpass2Write_ = 0;
     uint32_t position_ = 0, clockPosition_ = 0, pitchRatioQ16_ = 65536, oneShotTarget_ = 0;
     int32_t envelope_ = 32767, delaySamples_ = 4000, reverbAmount_ = 0;
+    int32_t pitchMillivolts_ = 0;
     int32_t octaveOffset_ = 0, midiTransposeSemitones_ = 0;
     int32_t midiMainControlTargetQ8_ = 0, midiMainPositionQ8_ = 0;
     int32_t smoothedCv1_ = 0, smoothedCv2_ = 0;

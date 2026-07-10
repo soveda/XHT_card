@@ -147,7 +147,6 @@ private:
 
         // About +/- 4 octaves. Quantised semitones tame the ADC's effective resolution.
         const int32_t semitones = (smoothedCv1_ * 48) >> 11;
-        pitchMillivolts_ = (semitones * 1000) / 12; // control-rate only
         pitchRatioQ16_ = ratioForSemitones(semitones);
 
         delaySamples_ = 64 + ((KnobVal(Knob::X) * (kDelaySize - 65)) >> 12);
@@ -159,10 +158,11 @@ private:
         if (switchDown && !lastSwitchDown_) resetRequested_ = true;
         lastSwitchDown_ = switchDown;
         if (octaveOffset_) pitchRatioQ16_ <<= 1;
+        pitchMillivolts_ = ((semitones + octaveOffset_) * 1000) / 12; // control-rate only
 
         // Mirror the resolved note-position state for external modulation and monitoring.
         const int32_t positionMillivolts = positionToMillivolts(position_);
-        CVOut1Millivolts(positionMillivolts);
+        CVOut1Millivolts(Connected(Input::CV1) ? pitchMillivolts_ : positionMillivolts);
         CVOut2Millivolts(positionMillivolts);
 
         LedBrightness(0, uint16_t(position_ >> 4));
