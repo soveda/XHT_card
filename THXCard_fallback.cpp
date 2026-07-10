@@ -94,7 +94,7 @@ private:
     void __not_in_flash_func(updateControls)(bool p2) {
         const int32_t main = KnobVal(Knob::Main);
         const int32_t cvPos = CVIn2();
-        const int32_t manualTarget = (main << 4) + (cvPos << 4);
+        const int32_t manualTarget = (main << 4) + (cvPos << 5);
         int32_t pos = manualTarget;
 
         p1Connected_ = Connected(Input::Pulse1);
@@ -183,7 +183,8 @@ private:
         position_ = 0;
         clockPosition_ = 0;
         oneShotActive_ = !Connected(Input::Pulse2);
-        oneShotTarget_ = uint32_t(KnobVal(Knob::Main) << 4);
+        const int32_t manualTarget = (KnobVal(Knob::Main) << 4) + (CVIn2() << 5);
+        oneShotTarget_ = uint32_t(manualTarget < 0 ? 0 : (manualTarget > 65535 ? 65535 : manualTarget));
         resetRequested_ = false;
     }
 
