@@ -11,6 +11,7 @@ constexpr uint32_t kControlMask = 31;
 constexpr uint32_t kOneShotStep = 48;
 constexpr uint32_t kMidiMainActiveTicks = 3000;
 constexpr uint32_t kMidiOutPositionQuantum = 2048;
+constexpr uint32_t kMidiMainGlideStep = 192;
 constexpr int32_t kSemitoneMin = -48;
 constexpr int32_t kSemitoneMax = 48;
 constexpr int32_t kVoices = 16;
@@ -105,7 +106,7 @@ public:
         }
 
         if (type == 0xB0u && midiData_[0] == 1u) {
-            midiMainControlTarget_ = (int32_t(midiData_[1]) * 4095) / 127;
+            midiMainControlTargetQ8_ = ((int32_t(midiData_[1]) * 4095) << 8) / 127;
             midiMainActive_ = true;
             midiMainAge_ = 0;
         }
@@ -233,9 +234,10 @@ private:
             ++midiMainAge_;
         if (midiMainAge_ >= kMidiMainActiveTicks)
             midiMainActive_ = false;
-        smoothedMidiMainControl_ += (midiMainControlTarget_ - smoothedMidiMainControl_) >> 2;
+        midiMainPositionQ8_ += (midiMainControlTargetQ8_ - midiMainPositionQ8_) >> 3;
+        const int32_t smoothedMidiMainControl = midiMainPositionQ8_ >> 8;
         if (midiMainActive_)
-            main = smoothedMidiMainControl_;
+            main = smoothedMidiMainControl;
         smoothedCv2_ += (CVIn2() - smoothedCv2_) >> 2;
         smoothedCv1_ += (CVIn1() - smoothedCv1_) >> 2;
         const int32_t cvPos = smoothedCv2_;
@@ -262,12 +264,20 @@ private:
                     position_ = advanced < oneShotTarget_ ? advanced : oneShotTarget_;
                     oneShotActive_ = position_ < oneShotTarget_;
                 }
+            } else if (midiMainActive_) {
+                if (position_ < oneShotTarget_) {
+                    const uint32_t advanced = position_ + kMidiMainGlideStep;
+                    position_ = advanced < oneShotTarget_ ? advanced : oneShotTarget_;
+                } else if (position_ > oneShotTarget_) {
+                    const uint32_t retreated = position_ > kMidiMainGlideStep ? position_ - kMidiMainGlideStep : 0;
+                    position_ = retreated > oneShotTarget_ ? retreated : oneShotTarget_;
+                }
             } else {
                 pos = manualTarget;
             }
         }
         lastP2_ = p2;
-        if (!oneShotActive_ || externalClockMode)
+        if ((!oneShotActive_ && !midiMainActive_) || externalClockMode)
             position_ = uint32_t(pos < 0 ? 0 : (pos > 65535 ? 65535 : pos));
 
         const int32_t semitones = ((smoothedCv1_ * 48) >> 11) + midiTransposeSemitones_;
@@ -291,7 +301,7 @@ private:
         LedBrightness(0, uint16_t(position_ >> 4));
         LedBrightness(1, uint16_t(main));
         LedBrightness(2, uint16_t(envelope_ >> 3));
-        LedBrightness(3, uint16_t(midiMainActive_ ? smoothedMidiMainControl_ : KnobVal(Knob::Y)));
+        LedBrightness(3, uint16_t(midiMainActive_ ? smoothedMidiMainControl : KnobVal(Knob::Y)));
         LedOn(4, PulseIn1());
         LedOn(5, externalClockMode);
 
@@ -327,7 +337,7 @@ private:
         position_ = 0;
         clockPosition_ = 0;
         oneShotActive_ = !Connected(Input::Pulse2);
-        const int32_t main = midiMainActive_ ? smoothedMidiMainControl_ : KnobVal(Knob::Main);
+        const int32_t main = midiMainActive_ ? (midiMainPositionQ8_ >> 8) : KnobVal(Knob::Main);
         const int32_t manualTarget = (main << 4) + (smoothedCv2_ << 5);
         oneShotTarget_ = uint32_t(manualTarget < 0 ? 0 : (manualTarget > 65535 ? 65535 : manualTarget));
         resetRequested_ = false;
@@ -343,7 +353,7 @@ private:
     uint32_t position_ = 0, clockPosition_ = 0, pitchRatioQ16_ = 65536, oneShotTarget_ = 0;
     int32_t envelope_ = 32767, delaySamples_ = 4000, reverbAmount_ = 0;
     int32_t octaveOffset_ = 0, midiTransposeSemitones_ = 0;
-    int32_t midiMainControlTarget_ = 0, smoothedMidiMainControl_ = 0;
+    int32_t midiMainControlTargetQ8_ = 0, midiMainPositionQ8_ = 0;
     int32_t smoothedCv1_ = 0, smoothedCv2_ = 0;
     uint8_t midiRunningStatus_ = 0, midiData_[2]{}, midiDataCount_ = 0, midiChannel_ = 0;
     uint8_t desiredChordNotes_[kVoices]{}, activeChordNotes_[kVoices]{};
