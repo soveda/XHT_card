@@ -102,6 +102,23 @@ public:
             midiTransposeSemitones_ = int32_t(midiData_[0]) - 60;
             if (midiTransposeSemitones_ < -48) midiTransposeSemitones_ = -48;
             if (midiTransposeSemitones_ > 48) midiTransposeSemitones_ = 48;
+            if (!midiNotesDown_[midiData_[0]]) {
+                midiNotesDown_[midiData_[0]] = true;
+                ++midiHeldNotes_;
+            }
+            midiPerformanceGateEnabled_ = true;
+            midiGateOpen_ = true;
+            return;
+        }
+
+        if (type == 0x80u || (type == 0x90u && midiData_[1] == 0)) {
+            if (midiNotesDown_[midiData_[0]]) {
+                midiNotesDown_[midiData_[0]] = false;
+                if (midiHeldNotes_ > 0)
+                    --midiHeldNotes_;
+            }
+            midiPerformanceGateEnabled_ = true;
+            midiGateOpen_ = midiHeldNotes_ > 0 || sustainPedalDown_;
             return;
         }
 
@@ -109,6 +126,13 @@ public:
             midiMainControlTargetQ8_ = ((int32_t(midiData_[1]) * 4095) << 8) / 127;
             midiMainActive_ = true;
             midiMainAge_ = 0;
+            return;
+        }
+
+        if (type == 0xB0u && midiData_[0] == 64u) {
+            sustainPedalDown_ = midiData_[1] >= 64u;
+            midiPerformanceGateEnabled_ = true;
+            midiGateOpen_ = midiHeldNotes_ > 0 || sustainPedalDown_;
         }
     }
 
@@ -155,7 +179,9 @@ public:
         if ((sampleCounter_++ & kControlMask) == 0) updateControls(p2);
         if (resetRequested_) resetNote();
 
-        const bool audible = !p1Connected_ || p1;
+        const bool p1Audible = !p1Connected_ || p1;
+        const bool midiAudible = !midiPerformanceGateEnabled_ || midiGateOpen_;
+        const bool audible = p1Audible && midiAudible;
         midiOutGateOpen_ = audible;
         envelope_ += ((audible ? 32767 : 0) - envelope_) >> 7;
 
@@ -357,10 +383,12 @@ private:
     int32_t smoothedCv1_ = 0, smoothedCv2_ = 0;
     uint8_t midiRunningStatus_ = 0, midiData_[2]{}, midiDataCount_ = 0, midiChannel_ = 0;
     uint8_t desiredChordNotes_[kVoices]{}, activeChordNotes_[kVoices]{};
-    uint8_t desiredChordCount_ = 0, activeChordCount_ = 0;
+    uint8_t desiredChordCount_ = 0, activeChordCount_ = 0, midiHeldNotes_ = 0;
+    bool midiNotesDown_[128]{};
     bool p1Connected_ = false, lastP2_ = false, resetRequested_ = false;
     bool oneShotActive_ = false, lastSwitchDown_ = false;
     bool pendingChordSnapshot_ = false, midiMainActive_ = false, midiOutGateOpen_ = true;
+    bool midiPerformanceGateEnabled_ = false, midiGateOpen_ = true, sustainPedalDown_ = false;
     uint32_t midiMainAge_ = 0xffffffffu;
 };
 

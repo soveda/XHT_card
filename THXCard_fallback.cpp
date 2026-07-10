@@ -7,10 +7,22 @@ namespace {
 constexpr uint32_t kSampleRate = 48000;
 constexpr uint32_t kControlMask = 31;       // controls at 1.5 kHz
 constexpr uint32_t kOneShotStep = 48;       // about 0.9 s for a full-scale sweep
+constexpr int32_t kSemitoneMin = -48;
+constexpr int32_t kSemitoneMax = 48;
 constexpr int32_t kVoices = 16;
 constexpr int32_t kDelaySize = 16384;       // 341 ms maximum at 48 kHz
 constexpr int32_t kReverbSize = 4096;
 constexpr int32_t kChord[kVoices] = {26,38,50,57,62,69,74,81,62,69,74,81,86,86,90,90};
+constexpr uint32_t kPitchRatioQ16Lut[] = {
+    4096, 4340, 4598, 4871, 5161, 5468, 5793, 6137, 6502, 6889, 7298, 7732, 8192, 8679, 9195, 9742,
+    10321, 10935, 11585, 12274, 13004, 13777, 14596, 15464, 16384, 17358, 18390, 19484, 20643, 21870,
+    23170, 24548, 26008, 27554, 29193, 30929, 32768, 34716, 36781, 38968, 41285, 43740, 46341, 49097,
+    52016, 55109, 58386, 61858, 65536, 69433, 73562, 77936, 82570, 87480, 92682, 98193, 104032, 110218,
+    116772, 123715, 131072, 138866, 147123, 155872, 165140, 174960, 185364, 196386, 208064, 220436,
+    233544, 247431, 262144, 277732, 294247, 311744, 330281, 349920, 370728, 392772, 416128, 440872,
+    467088, 494862, 524288, 555464, 588493, 623487, 660561, 699841, 741455, 785544, 832255, 881744,
+    934175, 989724, 1048576
+};
 
 // Q0.32 phase increments for MIDI notes 0..127 at 48 kHz. Generated once at
 // compile time without putting floating point anywhere in the audio loop.
@@ -97,7 +109,9 @@ public:
 private:
     void __not_in_flash_func(updateControls)(bool p2) {
         const int32_t main = KnobVal(Knob::Main);
-        const int32_t cvPos = CVIn2();
+        smoothedCv2_ += (CVIn2() - smoothedCv2_) >> 2;
+        smoothedCv1_ += (CVIn1() - smoothedCv1_) >> 2;
+        const int32_t cvPos = smoothedCv2_;
         const int32_t manualTarget = (main << 4) + (cvPos << 5);
         int32_t pos = manualTarget;
 
@@ -128,7 +142,7 @@ private:
         }
 
         // About +/- 4 octaves. Quantised semitones tame the ADC's effective resolution.
-        const int32_t semitones = (CVIn1() * 48) >> 11;
+        const int32_t semitones = (smoothedCv1_ * 48) >> 11;
         pitchMillivolts_ = (semitones * 1000) / 12; // control-rate only
         pitchRatioQ16_ = ratioForSemitones(semitones);
 
@@ -156,13 +170,9 @@ private:
     }
 
     static uint32_t __not_in_flash_func(ratioForSemitones)(int32_t semitones) {
-        uint32_t ratio = 65536;
-        if (semitones >= 0) {
-            for (int32_t i = 0; i < semitones; ++i) ratio = uint32_t((uint64_t(ratio) * kSemitoneRatioQ30) >> 30);
-        } else {
-            for (int32_t i = semitones; i < 0; ++i) ratio = uint32_t((uint64_t(ratio) << 30) / kSemitoneRatioQ30);
-        }
-        return ratio;
+        if (semitones < kSemitoneMin) semitones = kSemitoneMin;
+        if (semitones > kSemitoneMax) semitones = kSemitoneMax;
+        return kPitchRatioQ16Lut[semitones - kSemitoneMin];
     }
 
     void __not_in_flash_func(processEffects)(int32_t &left, int32_t &right) {
@@ -188,7 +198,7 @@ private:
         position_ = 0;
         clockPosition_ = 0;
         oneShotActive_ = !Connected(Input::Pulse2);
-        const int32_t manualTarget = (KnobVal(Knob::Main) << 4) + (CVIn2() << 5);
+        const int32_t manualTarget = (KnobVal(Knob::Main) << 4) + (smoothedCv2_ << 5);
         oneShotTarget_ = uint32_t(manualTarget < 0 ? 0 : (manualTarget > 65535 ? 65535 : manualTarget));
         resetRequested_ = false;
     }
@@ -202,7 +212,7 @@ private:
     uint32_t delayWrite_ = 0, reverbWrite_ = 0, sampleCounter_ = 0;
     uint32_t position_ = 0, clockPosition_ = 0, pitchRatioQ16_ = 65536, oneShotTarget_ = 0;
     int32_t envelope_ = 32767, delaySamples_ = 4000, reverbAmount_ = 0;
-    int32_t pitchMillivolts_ = 0, octaveOffset_ = 0;
+    int32_t pitchMillivolts_ = 0, octaveOffset_ = 0, smoothedCv1_ = 0, smoothedCv2_ = 0;
     bool p1Connected_ = false, lastP2_ = false, resetRequested_ = false;
     bool oneShotActive_ = false, lastSwitchDown_ = false;
 };

@@ -7,9 +7,16 @@ This is a separate experimental build. It does not replace the main card.
 What it adds:
 
 - MIDI note input for pitch transpose
-- MIDI CC1 mapped to note position like `Main`
-- smoothed MIDI CC1 response for more musical scrub control
+- MIDI CC1 sets a destination for musical note movement
 - MIDI note output of the current chord snapshot, cleaned up for DAW recording
+
+MIDI note gate behavior:
+
+- MIDI note-on opens the sound
+- MIDI note-off closes the sound
+- sustain pedal (`CC64`) holds the sound after note-off
+- if sustain is released with no held notes, the sound closes
+- before any MIDI note activity, the card still behaves normally without requiring MIDI gating
 
 MIDI out gate behavior:
 
@@ -22,6 +29,7 @@ Current MIDI behavior:
 
 - MIDI clock is not used
 - USB product name is `THX Card MIDI`
+- audible sound is gated by both MIDI note state and `P1` if `P1` is patched
 
 Important limitation:
 
