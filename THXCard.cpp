@@ -6,7 +6,7 @@
 namespace {
 constexpr uint32_t kSampleRate = 48000;
 constexpr uint32_t kControlMask = 31;       // controls at 1.5 kHz
-constexpr uint32_t kOneShotStep = 48;       // about 0.9 s for a full-scale sweep
+constexpr uint32_t kOneShotStep = 20;       // about 2.2 s for a full-scale sweep
 constexpr int32_t kSemitoneMin = -48;
 constexpr int32_t kSemitoneMax = 48;
 constexpr int32_t kVoices = 16;
@@ -147,7 +147,7 @@ private:
         pitchRatioQ16_ = ratioForSemitones(semitones);
 
         delaySamples_ = 64 + ((KnobVal(Knob::X) * (kDelaySize - 65)) >> 12);
-        reverbAmount_ = KnobVal(Knob::Y) << 2;
+        reverbAmount_ = KnobVal(Knob::Y) << 3;
 
         const Switch sw = SwitchVal();
         octaveOffset_ = sw == Switch::Up ? 12 : 0;
@@ -188,10 +188,10 @@ private:
         const uint32_t rr = (reverbWrite_ - 3067u) & (kReverbSize - 1);
         const int32_t wet = reverb_[rr];
         const int32_t mono = (left + right) >> 1;
-        reverb_[reverbWrite_] = int16_t(clamp12(mono + ((wet * 3) >> 2)));
+        reverb_[reverbWrite_] = int16_t(clamp12(mono + ((wet * 7) >> 3)));
         reverbWrite_ = (reverbWrite_ + 1) & (kReverbSize - 1);
-        left += (wet * reverbAmount_) >> 15;
-        right -= (wet * reverbAmount_) >> 15;
+        left += (wet * reverbAmount_) >> 14;
+        right -= (wet * reverbAmount_) >> 14;
     }
 
     void __not_in_flash_func(resetNote)() {

@@ -8,7 +8,7 @@
 
 namespace {
 constexpr uint32_t kControlMask = 31;
-constexpr uint32_t kOneShotStep = 48;
+constexpr uint32_t kOneShotStep = 20;
 constexpr uint32_t kMidiMainActiveTicks = 3000;
 constexpr uint32_t kMidiOutPositionQuantum = 2048;
 constexpr uint32_t kMidiMainGlideStep = 192;
@@ -310,7 +310,7 @@ private:
         pitchRatioQ16_ = ratioForSemitones(semitones);
 
         delaySamples_ = 64 + ((KnobVal(Knob::X) * (kDelaySize - 65)) >> 12);
-        reverbAmount_ = KnobVal(Knob::Y) << 2;
+        reverbAmount_ = KnobVal(Knob::Y) << 3;
 
         const Switch sw = SwitchVal();
         octaveOffset_ = sw == Switch::Up ? 12 : 0;
@@ -353,10 +353,10 @@ private:
         const uint32_t rr = (reverbWrite_ - 3067u) & (kReverbSize - 1);
         const int32_t wet = reverb_[rr];
         const int32_t mono = (left + right) >> 1;
-        reverb_[reverbWrite_] = int16_t(clamp12(mono + ((wet * 3) >> 2)));
+        reverb_[reverbWrite_] = int16_t(clamp12(mono + ((wet * 7) >> 3)));
         reverbWrite_ = (reverbWrite_ + 1) & (kReverbSize - 1);
-        left += (wet * reverbAmount_) >> 15;
-        right -= (wet * reverbAmount_) >> 15;
+        left += (wet * reverbAmount_) >> 14;
+        right -= (wet * reverbAmount_) >> 14;
     }
 
     void __not_in_flash_func(resetNote)() {
