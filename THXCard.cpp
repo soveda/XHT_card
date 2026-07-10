@@ -21,6 +21,10 @@ constexpr uint32_t mulQ30(uint32_t a, uint32_t b) {
     return uint32_t((uint64_t(a) * b) >> 30);
 }
 
+constexpr int32_t positionToMillivolts(uint32_t position) {
+    return int32_t((uint64_t(position) * 5000u) >> 16);
+}
+
 uint32_t __not_in_flash_func(noteIncrement)(int32_t note) {
     note = note < 0 ? 0 : (note > 127 ? 127 : note);
     uint32_t inc = kA4Increment;
@@ -138,9 +142,10 @@ private:
         lastSwitchDown_ = switchDown;
         if (octaveOffset_) pitchRatioQ16_ <<= 1;
 
-        // Calibrated CV calls are control-rate work; their output is held by the framework.
-        CVOut1Millivolts(pitchMillivolts_ + 1000);
-        CVOut2Millivolts(pitchMillivolts_);
+        // Mirror the resolved note-position state for external modulation and monitoring.
+        const int32_t positionMillivolts = positionToMillivolts(position_);
+        CVOut1Millivolts(positionMillivolts);
+        CVOut2Millivolts(positionMillivolts);
 
         LedBrightness(0, uint16_t(position_ >> 4));
         LedBrightness(1, uint16_t(KnobVal(Knob::X)));
