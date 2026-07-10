@@ -22,3 +22,4 @@ If you just want the current recommended build, flash `THXCard.uf2`.
 - The synthesis idea was inspired by Tod E. Kurt's GPL-3.0 `derpnote2`, so this project remains GPL-3.0.
 - In the MIDI build, `P1` only gates MIDI out when `P1` is physically patched. Unpatched `P1` leaves MIDI out always open.
 - In the MIDI build, note-on/note-off and sustain pedal (`CC64`) now control whether the sound stays open when playing from a keyboard.
+- In current active builds, both CV outputs mirror the current note-position state; Pulse Out 1 mirrors note gate behavior and Pulse Out 2 mirrors the `P2` input pulse.
