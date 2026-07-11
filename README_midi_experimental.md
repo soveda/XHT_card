@@ -31,6 +31,7 @@ Current MIDI behavior:
 - MIDI clock is not used
 - USB product name is `THX Card MIDI`
 - audible sound is gated by both MIDI note state and `P1` if `P1` is patched
+- analog `CV2` is scaled for full position travel from 0-5V controller/mod-wheel sources
 - `CV Out 1` and `CV Out 2` both mirror the current note-position state
 - `Pulse Out 1` mirrors the current note gate behavior
 - `Pulse Out 2` mirrors the incoming `P2` pulse

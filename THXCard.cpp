@@ -11,11 +11,7 @@ constexpr int32_t kSemitoneMin = -48;
 constexpr int32_t kSemitoneMax = 48;
 constexpr int32_t kVoices = 16;
 constexpr int32_t kDelaySize = 16384;       // 341 ms maximum at 48 kHz
-constexpr int32_t kReverbComb1Size = 907;
-constexpr int32_t kReverbComb2Size = 1297;
-constexpr int32_t kReverbComb3Size = 1699;
-constexpr int32_t kReverbAllpass1Size = 211;
-constexpr int32_t kReverbAllpass2Size = 337;
+constexpr int32_t kReverbSize = 4096;
 constexpr int32_t kChord[kVoices] = {26,38,50,57,62,69,74,81,62,69,74,81,86,86,90,90};
 constexpr uint32_t kPitchRatioQ16Lut[] = {
     4096, 4340, 4598, 4871, 5161, 5468, 5793, 6137, 6502, 6889, 7298, 7732, 8192, 8679, 9195, 9742,
@@ -116,7 +112,7 @@ private:
         smoothedCv2_ += (CVIn2() - smoothedCv2_) >> 2;
         smoothedCv1_ += (CVIn1() - smoothedCv1_) >> 2;
         const int32_t cvPos = smoothedCv2_;
-        const int32_t manualTarget = (main << 4) + (cvPos << 5);
+        const int32_t manualTarget = (main << 4) + (cvPos << 6);
         int32_t pos = manualTarget;
 
         p1Connected_ = Connected(Input::Pulse1);
@@ -150,7 +146,7 @@ private:
         pitchRatioQ16_ = ratioForSemitones(semitones);
 
         delaySamples_ = 64 + ((KnobVal(Knob::X) * (kDelaySize - 65)) >> 12);
-        reverbAmount_ = KnobVal(Knob::Y) << 3;
+        reverbAmount_ = KnobVal(Knob::Y) << 2;
 
         const Switch sw = SwitchVal();
         octaveOffset_ = sw == Switch::Up ? 12 : 0;
@@ -189,42 +185,20 @@ private:
         left += dl >> 1;
         right += dr >> 1;
 
+        const uint32_t rr = (reverbWrite_ - 3067u) & (kReverbSize - 1);
+        const int32_t wet = reverb_[rr];
         const int32_t mono = (left + right) >> 1;
-
-        const int32_t c1 = comb1_[comb1Write_];
-        comb1_[comb1Write_] = int16_t(clamp12(mono + ((c1 * 3) >> 2)));
-        comb1Write_ = (comb1Write_ + 1) % kReverbComb1Size;
-
-        const int32_t c2 = comb2_[comb2Write_];
-        comb2_[comb2Write_] = int16_t(clamp12(mono + ((c2 * 11) >> 4)));
-        comb2Write_ = (comb2Write_ + 1) % kReverbComb2Size;
-
-        const int32_t c3 = comb3_[comb3Write_];
-        comb3_[comb3Write_] = int16_t(clamp12(mono + ((c3 * 13) >> 4)));
-        comb3Write_ = (comb3Write_ + 1) % kReverbComb3Size;
-
-        int32_t wet = (c1 + c2 + c3) / 3;
-
-        const int32_t ap1 = allpass1_[allpass1Write_];
-        const int32_t ap1Out = ap1 - (wet >> 1);
-        allpass1_[allpass1Write_] = int16_t(clamp12(wet + (ap1 >> 1)));
-        allpass1Write_ = (allpass1Write_ + 1) % kReverbAllpass1Size;
-
-        const int32_t ap2 = allpass2_[allpass2Write_];
-        const int32_t ap2Out = ap2 - (ap1Out >> 1);
-        allpass2_[allpass2Write_] = int16_t(clamp12(ap1Out + (ap2 >> 1)));
-        allpass2Write_ = (allpass2Write_ + 1) % kReverbAllpass2Size;
-
-        wet = ap2Out;
-        left += (wet * reverbAmount_) >> 14;
-        right += ((ap1Out - wet) * reverbAmount_) >> 14;
+        reverb_[reverbWrite_] = int16_t(clamp12(mono + ((wet * 3) >> 2)));
+        reverbWrite_ = (reverbWrite_ + 1) & (kReverbSize - 1);
+        left += (wet * reverbAmount_) >> 15;
+        right -= (wet * reverbAmount_) >> 15;
     }
 
     void __not_in_flash_func(resetNote)() {
         position_ = 0;
         clockPosition_ = 0;
         oneShotActive_ = !Connected(Input::Pulse2);
-        const int32_t manualTarget = (KnobVal(Knob::Main) << 4) + (smoothedCv2_ << 5);
+        const int32_t manualTarget = (KnobVal(Knob::Main) << 4) + (smoothedCv2_ << 6);
         oneShotTarget_ = uint32_t(manualTarget < 0 ? 0 : (manualTarget > 65535 ? 65535 : manualTarget));
         resetRequested_ = false;
     }
@@ -234,13 +208,8 @@ private:
     uint32_t targetInc_[kVoices]{};
     int16_t delayL_[kDelaySize]{};
     int16_t delayR_[kDelaySize]{};
-    int16_t comb1_[kReverbComb1Size]{};
-    int16_t comb2_[kReverbComb2Size]{};
-    int16_t comb3_[kReverbComb3Size]{};
-    int16_t allpass1_[kReverbAllpass1Size]{};
-    int16_t allpass2_[kReverbAllpass2Size]{};
-    uint32_t delayWrite_ = 0, sampleCounter_ = 0;
-    uint16_t comb1Write_ = 0, comb2Write_ = 0, comb3Write_ = 0, allpass1Write_ = 0, allpass2Write_ = 0;
+    int16_t reverb_[kReverbSize]{};
+    uint32_t delayWrite_ = 0, reverbWrite_ = 0, sampleCounter_ = 0;
     uint32_t position_ = 0, clockPosition_ = 0, pitchRatioQ16_ = 65536, oneShotTarget_ = 0;
     int32_t envelope_ = 32767, delaySamples_ = 4000, reverbAmount_ = 0;
     int32_t pitchMillivolts_ = 0, octaveOffset_ = 0, smoothedCv1_ = 0, smoothedCv2_ = 0;

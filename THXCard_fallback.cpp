@@ -6,7 +6,7 @@
 namespace {
 constexpr uint32_t kSampleRate = 48000;
 constexpr uint32_t kControlMask = 31;       // controls at 1.5 kHz
-constexpr uint32_t kOneShotStep = 48;       // about 0.9 s for a full-scale sweep
+constexpr uint32_t kOneShotStep = 20;       // about 2.2 s for a full-scale sweep
 constexpr int32_t kSemitoneMin = -48;
 constexpr int32_t kSemitoneMax = 48;
 constexpr int32_t kVoices = 16;
@@ -112,7 +112,7 @@ private:
         smoothedCv2_ += (CVIn2() - smoothedCv2_) >> 2;
         smoothedCv1_ += (CVIn1() - smoothedCv1_) >> 2;
         const int32_t cvPos = smoothedCv2_;
-        const int32_t manualTarget = (main << 4) + (cvPos << 5);
+        const int32_t manualTarget = (main << 4) + (cvPos << 6);
         int32_t pos = manualTarget;
 
         p1Connected_ = Connected(Input::Pulse1);
@@ -143,7 +143,6 @@ private:
 
         // About +/- 4 octaves. Quantised semitones tame the ADC's effective resolution.
         const int32_t semitones = (smoothedCv1_ * 48) >> 11;
-        pitchMillivolts_ = (semitones * 1000) / 12; // control-rate only
         pitchRatioQ16_ = ratioForSemitones(semitones);
 
         delaySamples_ = 64 + ((KnobVal(Knob::X) * (kDelaySize - 65)) >> 12);
@@ -155,10 +154,11 @@ private:
         if (switchDown && !lastSwitchDown_) resetRequested_ = true;
         lastSwitchDown_ = switchDown;
         if (octaveOffset_) pitchRatioQ16_ <<= 1;
+        pitchMillivolts_ = ((semitones + octaveOffset_) * 1000) / 12; // control-rate only
 
         // Mirror the resolved note-position state for external modulation and monitoring.
         const int32_t positionMillivolts = positionToMillivolts(position_);
-        CVOut1Millivolts(positionMillivolts);
+        CVOut1Millivolts(Connected(Input::CV1) ? pitchMillivolts_ : positionMillivolts);
         CVOut2Millivolts(positionMillivolts);
 
         LedBrightness(0, uint16_t(position_ >> 4));
@@ -198,7 +198,7 @@ private:
         position_ = 0;
         clockPosition_ = 0;
         oneShotActive_ = !Connected(Input::Pulse2);
-        const int32_t manualTarget = (KnobVal(Knob::Main) << 4) + (smoothedCv2_ << 5);
+        const int32_t manualTarget = (KnobVal(Knob::Main) << 4) + (smoothedCv2_ << 6);
         oneShotTarget_ = uint32_t(manualTarget < 0 ? 0 : (manualTarget > 65535 ? 65535 : manualTarget));
         resetRequested_ = false;
     }
