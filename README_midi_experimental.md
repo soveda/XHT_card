@@ -9,7 +9,6 @@ What it adds:
 - MIDI note input for pitch transpose
 - MIDI CC1 sets a destination for musical note movement
 - MIDI note output of the current chord snapshot, cleaned up for DAW recording
-- lightweight multi-stage reverb for a rounder tail
 
 MIDI note gate behavior:
 
@@ -32,7 +31,8 @@ Current MIDI behavior:
 - USB product name is `THX Card MIDI`
 - audible sound is gated by both MIDI note state and `P1` if `P1` is patched
 - analog `CV2` is scaled for full position travel from 0-5V controller/mod-wheel sources
-- `CV Out 1` and `CV Out 2` both mirror the current note-position state
+- `CV Out 1` mirrors note position unless `CV1` is patched, then it becomes pitch
+- `CV Out 2` always mirrors the current note-position state
 - `Pulse Out 1` mirrors the current note gate behavior
 - `Pulse Out 2` mirrors the incoming `P2` pulse
 
@@ -41,4 +41,4 @@ Important limitation:
 - the RP2040 USB setup here boots as either USB host or USB device, not both at the same time
 - that means it can talk to a direct USB MIDI controller in host mode, or to a DAW/computer in device mode
 
-Use this version if you want to explore MIDI behavior. It is build-tested, but it is still experimental and not yet promoted over the main build.
+Use this version if you want the tested MIDI build. It remains separate from the main card so the non-MIDI fallback stays simple and safe.

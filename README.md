@@ -4,7 +4,7 @@ This folder now contains three user-facing firmware variants for the Music Thing
 
 - `THXCard.uf2` — current main build
 - `THXCard_fallback.uf2` — last accepted rollback-safe build
-- `THXCardMidiExperimental.uf2` — separate MIDI experiment
+- `THXCardMidiExperimental.uf2` — tested MIDI build
 
 If you just want the current recommended build, flash `THXCard.uf2`.
 
@@ -12,7 +12,7 @@ If you just want the current recommended build, flash `THXCard.uf2`.
 
 - [README_main.md](/Users/adrianvos/coding/GitHub/XHT_card/README_main.md) — current recommended build
 - [README_fallback.md](/Users/adrianvos/coding/GitHub/XHT_card/README_fallback.md) — rollback-safe build
-- [README_midi_experimental.md](/Users/adrianvos/coding/GitHub/XHT_card/README_midi_experimental.md) — MIDI experiment
+- [README_midi_experimental.md](/Users/adrianvos/coding/GitHub/XHT_card/README_midi_experimental.md) — tested MIDI build
 
 ## Notes
 
