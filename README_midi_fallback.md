@@ -20,6 +20,25 @@ Confirmed behavior:
 - if `P1` is not patched, MIDI out is not gated
 - USB product name is `THX Card MIDI`
 - USB host/device role detection follows the same boot pattern as CozmikC1zzl3
+- LED 5 shows USB role when not clocking from `P2`: solid = USB host/controller mode, slow blink = USB device/DAW mode
+
+Short control summary:
+
+- `Main` — note position / one-shot destination unless recent `CC1` is taking over destination
+- `X` — delay
+- `Y` — reverb
+- switch up — octave up
+- switch middle — normal octave
+- momentary switch down — reset / one-shot from start to destination
+- `CV1` in — pitch transpose
+- `CV2` in — position and one-shot destination control
+- `P1` in — audio gate when patched, and MIDI-out gate when patched
+- `P2` in — external stepped clock
+- MIDI note in — pitch transpose and note gate
+- MIDI `CC1` / mod wheel — note destination
+- MIDI `CC64` — sustain pedal
+- MIDI clock — ignored
+- LED 5 — `P2` activity when clocked; otherwise USB role, solid = host/controller mode, slow blink = device/DAW mode
 
 Important USB note:
 

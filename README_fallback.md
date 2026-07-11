@@ -15,6 +15,24 @@ Accepted behavior in this fallback:
 - fallback reverb topology/gain, kept stable after testing
 - `P1` gates the sound when patched; leave `P1` unpatched for sustained audio
 
+Short control summary:
+
+- `Main` — position / destination through the note
+- `X` — delay
+- `Y` — reverb
+- switch up — octave up
+- switch middle — normal octave
+- momentary switch down — reset / one-shot from start to destination
+- `CV1` in — pitch transpose
+- `CV2` in — position and one-shot destination control
+- `P1` in — gate when patched; sustained note when unpatched
+- `P2` in — external stepped clock
+- `Audio 1/2` — stereo output with effects
+- `CV Out 1` — position, or pitch when `CV1` is patched
+- `CV Out 2` — position
+- `Pulse Out 1` — note gate
+- `Pulse Out 2` — mirror of `P2`
+
 Use this version if:
 
 - you want the safety copy

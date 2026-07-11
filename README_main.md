@@ -14,18 +14,18 @@ What it does:
 - `CV Out 1` mirrors note position unless `CV1` is patched; then it outputs pitch
 - `CV Out 2` always mirrors the current note-position state
 
-Controls:
+Short control summary:
 
 - `Main` — position / destination through the note
-- `CV1` — pitch transpose
-- `CV2` — position offset and one-shot destination contribution, scaled for full travel from 0-5V sources
-- `P1` — gate the sound when patched, sustain when unpatched
-- `P2` — external clock for stepped note position
 - `X` — delay
 - `Y` — reverb
-- `Switch Up` — octave up
-- `Switch Middle` — normal
-- `Switch Down` — reset
+- switch up — octave up
+- switch middle — normal octave
+- momentary switch down — reset / one-shot from start to destination
+- `CV1` in — pitch transpose
+- `CV2` in — position offset and one-shot destination contribution, scaled for full travel from 0-5V sources
+- `P1` in — gate the sound when patched, sustain when unpatched
+- `P2` in — external clock for stepped note position
 
 Outputs:
 

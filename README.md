@@ -4,15 +4,44 @@ This folder now contains three user-facing firmware variants for the Music Thing
 
 - `THXCard.uf2` — current main build
 - `THXCard_fallback.uf2` — last accepted rollback-safe build
-- `THXCardMidiExperimental.uf2` — tested MIDI build
+- `THXCardMidi.uf2` — current tested MIDI build
+- `THXCardMidi_fallback.uf2` — last accepted MIDI rollback-safe build
 
 If you just want the current recommended build, flash `THXCard.uf2`.
+
+## Short Control Summary
+
+- `Main` — note position / one-shot destination
+- `X` — delay
+- `Y` — reverb
+- switch up — octave up
+- switch middle — normal octave
+- momentary switch down — reset / one-shot from start to destination
+- `CV1` in — pitch transpose
+- `CV2` in — position/destination control
+- `P1` in — gate when patched; sustained note when unpatched
+- `P2` in — external stepped clock
+- `Audio 1/2` — stereo output with effects
+- `CV Out 1` — position, or pitch when `CV1` is patched
+- `CV Out 2` — position
+- `Pulse Out 1` — note gate
+- `Pulse Out 2` — mirror of `P2`
+
+MIDI build additions:
+
+- MIDI note input transposes pitch and gates sound
+- sustain pedal is `CC64`
+- mod wheel / `CC1` controls note destination
+- MIDI out sends the current chord notes
+- MIDI clock is ignored
+- LED 5 shows USB role when not clocking from `P2`: solid = USB host/controller mode, slow blink = USB device/DAW mode
 
 ## Quick Guide
 
 - [README_main.md](/Users/adrianvos/coding/GitHub/XHT_card/README_main.md) — current recommended build
 - [README_fallback.md](/Users/adrianvos/coding/GitHub/XHT_card/README_fallback.md) — rollback-safe build
-- [README_midi_experimental.md](/Users/adrianvos/coding/GitHub/XHT_card/README_midi_experimental.md) — tested MIDI build
+- [README_midi.md](/Users/adrianvos/coding/GitHub/XHT_card/README_midi.md) — tested MIDI build
+- [README_midi_fallback.md](/Users/adrianvos/coding/GitHub/XHT_card/README_midi_fallback.md) — MIDI rollback-safe build
 
 ## Notes
 
