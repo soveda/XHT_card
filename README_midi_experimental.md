@@ -1,8 +1,12 @@
-# THX Card MIDI Experimental
+# THX Card MIDI
 
 Flash: [THXCardMidiExperimental.uf2](/Users/adrianvos/coding/GitHub/XHT_card/THXCardMidiExperimental.uf2)
 
-This is a separate experimental build. It does not replace the main card.
+This is the current tested MIDI build. It does not replace the main non-MIDI card.
+
+The matching tested MIDI fallback is:
+
+[THXCardMidi_fallback.uf2](/Users/adrianvos/coding/GitHub/XHT_card/THXCardMidi_fallback.uf2)
 
 What it adds:
 
@@ -43,4 +47,4 @@ Important limitation:
 - that means it can talk to a direct USB MIDI controller in host mode, or to a DAW/computer in device mode
 - host/device role is detected at boot; for controller use, power the card with the controller attached rather than only pressing reset
 
-Use this version if you want the tested MIDI build. It remains separate from the main card so the non-MIDI fallback stays simple and safe.
+Use this version if you want the current tested MIDI build. It remains separate from the main card so the non-MIDI fallback stays simple and safe.
