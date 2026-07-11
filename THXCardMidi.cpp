@@ -60,9 +60,9 @@ constexpr int32_t positionToMillivolts(uint32_t position) {
 }
 }
 
-class THXCardMidiExperimental final : public ComputerCard {
+class THXCardMidi final : public ComputerCard {
 public:
-    THXCardMidiExperimental() {
+    THXCardMidi() {
         for (int32_t i = 0; i < kVoices; ++i) {
             phase_[i] = 0x9e3779b9u * uint32_t(i + 1);
             startInc_[i] = noteIncrement(kStartNotes[i]);
@@ -72,6 +72,11 @@ public:
 
     bool ShouldBootUsbHost() {
         return USBPowerState() == USBPowerState_t::DFP;
+    }
+
+    void SetUsbRole(bool hostMode) {
+        usbRoleKnown_ = true;
+        usbHostMode_ = hostMode;
     }
 
     void ProcessUsbMidiByte(uint8_t byte) {
@@ -330,7 +335,9 @@ private:
         LedBrightness(2, uint16_t(envelope_ >> 3));
         LedBrightness(3, uint16_t(midiMainActive_ ? smoothedMidiMainControl : KnobVal(Knob::Y)));
         LedOn(4, PulseIn1());
-        LedOn(5, externalClockMode);
+        usbRoleLedCounter_ += 1;
+        const bool usbRoleLed = usbRoleKnown_ && (usbHostMode_ || (usbRoleLedCounter_ & 512u));
+        LedOn(5, externalClockMode ? PulseIn2() : usbRoleLed);
 
         updateChordSnapshot();
     }
@@ -391,10 +398,12 @@ private:
     bool oneShotActive_ = false, lastSwitchDown_ = false;
     bool pendingChordSnapshot_ = false, midiMainActive_ = false, midiOutGateOpen_ = true;
     bool midiPerformanceGateEnabled_ = false, midiGateOpen_ = true, sustainPedalDown_ = false;
+    volatile bool usbRoleKnown_ = false, usbHostMode_ = false;
     uint32_t midiMainAge_ = 0xffffffffu;
+    uint32_t usbRoleLedCounter_ = 0;
 };
 
-static THXCardMidiExperimental card;
+static THXCardMidi card;
 static volatile uint8_t hostMidiDeviceAddress = 0;
 
 extern "C" void tuh_midi_mount_cb(uint8_t dev_addr, uint8_t in_ep, uint8_t out_ep, uint8_t num_cables_rx, uint16_t num_cables_tx) {
@@ -430,6 +439,7 @@ extern "C" void tuh_midi_tx_cb(uint8_t dev_addr) {
 void usbMidiWorker() {
     sleep_ms(100);
     bool hostMode = card.ShouldBootUsbHost();
+    card.SetUsbRole(hostMode);
     if (hostMode)
         tuh_init(0);
     else
