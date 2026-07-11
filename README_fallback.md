@@ -1,6 +1,6 @@
-# THX Card Fallback
+# XHT Card Fallback
 
-Flash: [THXCard_fallback.uf2](/Users/adrianvos/coding/GitHub/XHT_card/uf2/THXCard_fallback.uf2)
+Flash: [XHTCard_fallback.uf2](/Users/adrianvos/coding/GitHub/XHT_card/uf2/XHTCard_fallback.uf2)
 
 This is the rollback-safe copy of the most recently accepted build.
 

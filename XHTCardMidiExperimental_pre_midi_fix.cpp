@@ -8,10 +8,9 @@
 
 namespace {
 constexpr uint32_t kControlMask = 31;
-constexpr uint32_t kOneShotStep = 20;
-constexpr uint32_t kMidiMainActiveTicks = 3000;
-constexpr uint32_t kMidiOutPositionQuantum = 2048;
-constexpr uint32_t kMidiMainGlideStep = 192;
+constexpr uint32_t kOneShotStep = 48;
+constexpr uint32_t kMidiClockDivider = 6;
+constexpr uint32_t kMidiClockActiveTicks = 1000;
 constexpr int32_t kSemitoneMin = -48;
 constexpr int32_t kSemitoneMax = 48;
 constexpr int32_t kVoices = 16;
@@ -60,9 +59,9 @@ constexpr int32_t positionToMillivolts(uint32_t position) {
 }
 }
 
-class THXCardMidiExperimental final : public ComputerCard {
+class XHTCardMidiPreMidiFix final : public ComputerCard {
 public:
-    THXCardMidiExperimental() {
+    XHTCardMidiPreMidiFix() {
         for (int32_t i = 0; i < kVoices; ++i) {
             phase_[i] = 0x9e3779b9u * uint32_t(i + 1);
             startInc_[i] = noteIncrement(kStartNotes[i]);
@@ -76,6 +75,11 @@ public:
 
     void ProcessUsbMidiByte(uint8_t byte) {
         if (byte == 0xF8u) {
+            midiClockAge_ = 0;
+            if (++midiClockDiv_ >= kMidiClockDivider) {
+                midiClockDiv_ = 0;
+                pendingMidiClockStep_ = true;
+            }
             return;
         }
 
@@ -102,53 +106,16 @@ public:
             midiTransposeSemitones_ = int32_t(midiData_[0]) - 60;
             if (midiTransposeSemitones_ < -48) midiTransposeSemitones_ = -48;
             if (midiTransposeSemitones_ > 48) midiTransposeSemitones_ = 48;
-            if (!midiNotesDown_[midiData_[0]]) {
-                midiNotesDown_[midiData_[0]] = true;
-                ++midiHeldNotes_;
-            }
-            midiPerformanceGateEnabled_ = true;
-            midiGateOpen_ = true;
-            return;
-        }
-
-        if (type == 0x80u || (type == 0x90u && midiData_[1] == 0)) {
-            if (midiNotesDown_[midiData_[0]]) {
-                midiNotesDown_[midiData_[0]] = false;
-                if (midiHeldNotes_ > 0)
-                    --midiHeldNotes_;
-            }
-            midiPerformanceGateEnabled_ = true;
-            midiGateOpen_ = midiHeldNotes_ > 0 || sustainPedalDown_;
             return;
         }
 
         if (type == 0xB0u && midiData_[0] == 1u) {
-            midiMainControlTargetQ8_ = ((int32_t(midiData_[1]) * 4095) << 8) / 127;
+            midiMainControl_ = (int32_t(midiData_[1]) * 4095) / 127;
             midiMainActive_ = true;
-            midiMainAge_ = 0;
-            return;
-        }
-
-        if (type == 0xB0u && midiData_[0] == 64u) {
-            sustainPedalDown_ = midiData_[1] >= 64u;
-            midiPerformanceGateEnabled_ = true;
-            midiGateOpen_ = midiHeldNotes_ > 0 || sustainPedalDown_;
         }
     }
 
     void SendPendingUsbMidiOutput() {
-        if (!midiOutGateOpen_) {
-            if (activeChordCount_ == 0)
-                return;
-            for (uint8_t i = 0; i < activeChordCount_; ++i) {
-                uint8_t off[3] = {uint8_t(0x80u | midiChannel_), activeChordNotes_[i], 0};
-                tud_midi_stream_write(0, off, sizeof(off));
-            }
-            activeChordCount_ = 0;
-            pendingChordSnapshot_ = false;
-            return;
-        }
-
         if (!pendingChordSnapshot_)
             return;
 
@@ -179,10 +146,7 @@ public:
         if ((sampleCounter_++ & kControlMask) == 0) updateControls(p2);
         if (resetRequested_) resetNote();
 
-        const bool p1Audible = !p1Connected_ || p1;
-        const bool midiAudible = !midiPerformanceGateEnabled_ || midiGateOpen_;
-        const bool audible = p1Audible && midiAudible;
-        midiOutGateOpen_ = audible;
+        const bool audible = !p1Connected_ || p1;
         envelope_ += ((audible ? 32767 : 0) - envelope_) >> 7;
 
         int32_t left = 0;
@@ -219,11 +183,10 @@ private:
     }
 
     void updateChordSnapshot() {
-        const uint32_t quantizedPosition = (position_ + (kMidiOutPositionQuantum >> 1)) & ~(kMidiOutPositionQuantum - 1);
         uint8_t count = 0;
         for (int32_t i = 0; i < kVoices; ++i) {
             int32_t note = kStartNotes[i] +
-                int32_t(((int64_t(kChord[i] - kStartNotes[i]) * quantizedPosition) + 32768) >> 16) +
+                int32_t(((int64_t(kChord[i] - kStartNotes[i]) * position_) + 32768) >> 16) +
                 midiTransposeSemitones_ + octaveOffset_;
             note = note < 0 ? 0 : (note > 127 ? 127 : note);
             uint8_t midiNote = uint8_t(note);
@@ -242,11 +205,6 @@ private:
         }
 
         desiredChordCount_ = count;
-        if (!midiOutGateOpen_) {
-            pendingChordSnapshot_ = activeChordCount_ != 0;
-            return;
-        }
-
         bool changed = count != activeChordCount_;
         for (uint8_t i = 0; i < count && !changed; ++i)
             changed = desiredChordNotes_[i] != activeChordNotes_[i];
@@ -256,29 +214,25 @@ private:
 
     void __not_in_flash_func(updateControls)(bool p2) {
         int32_t main = KnobVal(Knob::Main);
-        if (midiMainAge_ < 0xffffffffu)
-            ++midiMainAge_;
-        if (midiMainAge_ >= kMidiMainActiveTicks)
-            midiMainActive_ = false;
-        midiMainPositionQ8_ += (midiMainControlTargetQ8_ - midiMainPositionQ8_) >> 3;
-        const int32_t smoothedMidiMainControl = midiMainPositionQ8_ >> 8;
         if (midiMainActive_)
-            main = smoothedMidiMainControl;
+            main = midiMainControl_;
         smoothedCv2_ += (CVIn2() - smoothedCv2_) >> 2;
         smoothedCv1_ += (CVIn1() - smoothedCv1_) >> 2;
         const int32_t cvPos = smoothedCv2_;
-        const int32_t manualTarget = (main << 4) + (cvPos << 6);
+        const int32_t manualTarget = (main << 4) + (cvPos << 5);
         int32_t pos = manualTarget;
 
         p1Connected_ = Connected(Input::Pulse1);
         const bool p2Connected = Connected(Input::Pulse2);
-        const bool externalClockMode = p2Connected;
+        const bool midiClockActive = midiClockAge_ < kMidiClockActiveTicks;
+        const bool externalClockMode = p2Connected || midiClockActive;
         if (externalClockMode) {
-            const bool step = (p2 && !lastP2_);
+            const bool step = (p2 && !lastP2_) || pendingMidiClockStep_;
             if (step)
                 clockPosition_ += 4096;
             pos = int32_t(clockPosition_);
             oneShotActive_ = false;
+            pendingMidiClockStep_ = false;
         } else {
             oneShotTarget_ = uint32_t(manualTarget < 0 ? 0 : (manualTarget > 65535 ? 65535 : manualTarget));
             if (oneShotActive_) {
@@ -290,20 +244,14 @@ private:
                     position_ = advanced < oneShotTarget_ ? advanced : oneShotTarget_;
                     oneShotActive_ = position_ < oneShotTarget_;
                 }
-            } else if (midiMainActive_) {
-                if (position_ < oneShotTarget_) {
-                    const uint32_t advanced = position_ + kMidiMainGlideStep;
-                    position_ = advanced < oneShotTarget_ ? advanced : oneShotTarget_;
-                } else if (position_ > oneShotTarget_) {
-                    const uint32_t retreated = position_ > kMidiMainGlideStep ? position_ - kMidiMainGlideStep : 0;
-                    position_ = retreated > oneShotTarget_ ? retreated : oneShotTarget_;
-                }
             } else {
                 pos = manualTarget;
             }
         }
+        if (midiClockAge_ < 0xffffffffu)
+            ++midiClockAge_;
         lastP2_ = p2;
-        if ((!oneShotActive_ && !midiMainActive_) || externalClockMode)
+        if (!oneShotActive_ || externalClockMode)
             position_ = uint32_t(pos < 0 ? 0 : (pos > 65535 ? 65535 : pos));
 
         const int32_t semitones = ((smoothedCv1_ * 48) >> 11) + midiTransposeSemitones_;
@@ -319,16 +267,15 @@ private:
         lastSwitchDown_ = switchDown;
         if (octaveOffset_)
             pitchRatioQ16_ <<= 1;
-        pitchMillivolts_ = ((semitones + octaveOffset_) * 1000) / 12;
 
         const int32_t positionMillivolts = positionToMillivolts(position_);
-        CVOut1Millivolts(Connected(Input::CV1) ? pitchMillivolts_ : positionMillivolts);
+        CVOut1Millivolts(positionMillivolts);
         CVOut2Millivolts(positionMillivolts);
 
         LedBrightness(0, uint16_t(position_ >> 4));
         LedBrightness(1, uint16_t(main));
         LedBrightness(2, uint16_t(envelope_ >> 3));
-        LedBrightness(3, uint16_t(midiMainActive_ ? smoothedMidiMainControl : KnobVal(Knob::Y)));
+        LedBrightness(3, uint16_t(midiMainActive_ ? midiMainControl_ : KnobVal(Knob::Y)));
         LedOn(4, PulseIn1());
         LedOn(5, externalClockMode);
 
@@ -363,9 +310,9 @@ private:
     void __not_in_flash_func(resetNote)() {
         position_ = 0;
         clockPosition_ = 0;
-        oneShotActive_ = !Connected(Input::Pulse2);
-        const int32_t main = midiMainActive_ ? (midiMainPositionQ8_ >> 8) : KnobVal(Knob::Main);
-        const int32_t manualTarget = (main << 4) + (smoothedCv2_ << 6);
+        oneShotActive_ = !Connected(Input::Pulse2) && midiClockAge_ >= kMidiClockActiveTicks;
+        const int32_t main = midiMainActive_ ? midiMainControl_ : KnobVal(Knob::Main);
+        const int32_t manualTarget = (main << 4) + (smoothedCv2_ << 5);
         oneShotTarget_ = uint32_t(manualTarget < 0 ? 0 : (manualTarget > 65535 ? 65535 : manualTarget));
         resetRequested_ = false;
     }
@@ -378,23 +325,19 @@ private:
     int16_t reverb_[kReverbSize]{};
     uint32_t delayWrite_ = 0, reverbWrite_ = 0, sampleCounter_ = 0;
     uint32_t position_ = 0, clockPosition_ = 0, pitchRatioQ16_ = 65536, oneShotTarget_ = 0;
+    uint32_t midiClockAge_ = 0xffffffffu;
     int32_t envelope_ = 32767, delaySamples_ = 4000, reverbAmount_ = 0;
-    int32_t pitchMillivolts_ = 0;
-    int32_t octaveOffset_ = 0, midiTransposeSemitones_ = 0;
-    int32_t midiMainControlTargetQ8_ = 0, midiMainPositionQ8_ = 0;
+    int32_t octaveOffset_ = 0, midiTransposeSemitones_ = 0, midiMainControl_ = 0;
     int32_t smoothedCv1_ = 0, smoothedCv2_ = 0;
     uint8_t midiRunningStatus_ = 0, midiData_[2]{}, midiDataCount_ = 0, midiChannel_ = 0;
     uint8_t desiredChordNotes_[kVoices]{}, activeChordNotes_[kVoices]{};
-    uint8_t desiredChordCount_ = 0, activeChordCount_ = 0, midiHeldNotes_ = 0;
-    bool midiNotesDown_[128]{};
+    uint8_t desiredChordCount_ = 0, activeChordCount_ = 0, midiClockDiv_ = 0;
     bool p1Connected_ = false, lastP2_ = false, resetRequested_ = false;
-    bool oneShotActive_ = false, lastSwitchDown_ = false;
-    bool pendingChordSnapshot_ = false, midiMainActive_ = false, midiOutGateOpen_ = true;
-    bool midiPerformanceGateEnabled_ = false, midiGateOpen_ = true, sustainPedalDown_ = false;
-    uint32_t midiMainAge_ = 0xffffffffu;
+    bool oneShotActive_ = false, lastSwitchDown_ = false, pendingMidiClockStep_ = false;
+    bool pendingChordSnapshot_ = false, midiMainActive_ = false;
 };
 
-static THXCardMidiExperimental card;
+static XHTCardMidiPreMidiFix card;
 static volatile uint8_t hostMidiDeviceAddress = 0;
 
 extern "C" void tuh_midi_mount_cb(uint8_t dev_addr, uint8_t in_ep, uint8_t out_ep, uint8_t num_cables_rx, uint16_t num_cables_tx) {

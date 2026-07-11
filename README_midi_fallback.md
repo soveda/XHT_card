@@ -1,6 +1,6 @@
-# THX Card MIDI Fallback
+# XHT Card MIDI Fallback
 
-Flash: [THXCardMidi_fallback.uf2](/Users/adrianvos/coding/GitHub/XHT_card/uf2/THXCardMidi_fallback.uf2)
+Flash: [XHTCardMidi_fallback.uf2](/Users/adrianvos/coding/GitHub/XHT_card/uf2/XHTCardMidi_fallback.uf2)
 
 This is the most recent tested and accepted MIDI version.
 
@@ -18,7 +18,7 @@ Confirmed behavior:
 - MIDI out records useful chord notes to a DAW
 - if `P1` is patched, `P1` gates MIDI out
 - if `P1` is not patched, MIDI out is not gated
-- USB product name is `THX Card MIDI`
+- USB product name is `XHT Card MIDI`
 - USB host/device role detection follows the same boot pattern as CozmikC1zzl3
 
 Short control summary:
@@ -38,7 +38,7 @@ Short control summary:
 - MIDI `CC64` — sustain pedal
 - MIDI clock — ignored
 
-Note: the active [THXCardMidi.uf2](/Users/adrianvos/coding/GitHub/XHT_card/uf2/THXCardMidi.uf2) build adds the LED 5 USB role diagnostic. This fallback remains the frozen hardware-passed MIDI rollback copy.
+Note: the active [XHTCardMidi.uf2](/Users/adrianvos/coding/GitHub/XHT_card/uf2/XHTCardMidi.uf2) build adds the LED 5 USB role diagnostic. This fallback remains the frozen hardware-passed MIDI rollback copy.
 
 Important USB note:
 
@@ -48,4 +48,4 @@ Important USB note:
 
 The non-MIDI fallback remains separate:
 
-[THXCard_fallback.uf2](/Users/adrianvos/coding/GitHub/XHT_card/uf2/THXCard_fallback.uf2)
+[XHTCard_fallback.uf2](/Users/adrianvos/coding/GitHub/XHT_card/uf2/XHTCard_fallback.uf2)
