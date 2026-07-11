@@ -20,7 +20,6 @@ Confirmed behavior:
 - if `P1` is not patched, MIDI out is not gated
 - USB product name is `THX Card MIDI`
 - USB host/device role detection follows the same boot pattern as CozmikC1zzl3
-- LED 5 shows USB role when not clocking from `P2`: solid = USB host/controller mode, slow blink = USB device/DAW mode
 
 Short control summary:
 
@@ -38,7 +37,8 @@ Short control summary:
 - MIDI `CC1` / mod wheel — note destination
 - MIDI `CC64` — sustain pedal
 - MIDI clock — ignored
-- LED 5 — `P2` activity when clocked; otherwise USB role, solid = host/controller mode, slow blink = device/DAW mode
+
+Note: the active [THXCardMidi.uf2](/Users/adrianvos/coding/GitHub/XHT_card/THXCardMidi.uf2) build adds the LED 5 USB role diagnostic. This fallback remains the frozen hardware-passed MIDI rollback copy.
 
 Important USB note:
 
