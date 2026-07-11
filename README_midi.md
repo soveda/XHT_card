@@ -1,12 +1,12 @@
 # THX Card MIDI
 
-Flash: [THXCardMidi.uf2](/Users/adrianvos/coding/GitHub/XHT_card/THXCardMidi.uf2)
+Flash: [THXCardMidi.uf2](/Users/adrianvos/coding/GitHub/XHT_card/uf2/THXCardMidi.uf2)
 
 This is the current tested MIDI build. It does not replace the main non-MIDI card.
 
 The matching tested MIDI fallback is:
 
-[THXCardMidi_fallback.uf2](/Users/adrianvos/coding/GitHub/XHT_card/THXCardMidi_fallback.uf2)
+[THXCardMidi_fallback.uf2](/Users/adrianvos/coding/GitHub/XHT_card/uf2/THXCardMidi_fallback.uf2)
 
 What it adds:
 

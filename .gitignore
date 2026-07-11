@@ -7,5 +7,6 @@ build-*/
 *.elf.map
 *.hex
 
-# Keep the flashable release artifact tracked.
-!THXCard.uf2
+# Keep flashable release artifacts tracked.
+!uf2/
+!uf2/*.uf2

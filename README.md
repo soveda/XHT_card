@@ -1,13 +1,13 @@
 # THX Card
 
-This folder now contains three user-facing firmware variants for the Music Thing Modular Workshop Computer.
+This folder now contains the main and MIDI firmware builds, plus rollback-safe fallback UF2s, for the Music Thing Modular Workshop Computer.
 
-- `THXCard.uf2` — current main build
-- `THXCard_fallback.uf2` — last accepted rollback-safe build
-- `THXCardMidi.uf2` — current tested MIDI build
-- `THXCardMidi_fallback.uf2` — last accepted MIDI rollback-safe build
+- `uf2/THXCard.uf2` — current main build
+- `uf2/THXCard_fallback.uf2` — last accepted rollback-safe build
+- `uf2/THXCardMidi.uf2` — current tested MIDI build
+- `uf2/THXCardMidi_fallback.uf2` — last accepted MIDI rollback-safe build
 
-If you just want the current recommended build, flash `THXCard.uf2`.
+If you just want the current recommended build, flash `uf2/THXCard.uf2`.
 
 ## Short Control Summary
 

@@ -1,6 +1,6 @@
 # THX Card MIDI Fallback
 
-Flash: [THXCardMidi_fallback.uf2](/Users/adrianvos/coding/GitHub/XHT_card/THXCardMidi_fallback.uf2)
+Flash: [THXCardMidi_fallback.uf2](/Users/adrianvos/coding/GitHub/XHT_card/uf2/THXCardMidi_fallback.uf2)
 
 This is the most recent tested and accepted MIDI version.
 
@@ -38,7 +38,7 @@ Short control summary:
 - MIDI `CC64` — sustain pedal
 - MIDI clock — ignored
 
-Note: the active [THXCardMidi.uf2](/Users/adrianvos/coding/GitHub/XHT_card/THXCardMidi.uf2) build adds the LED 5 USB role diagnostic. This fallback remains the frozen hardware-passed MIDI rollback copy.
+Note: the active [THXCardMidi.uf2](/Users/adrianvos/coding/GitHub/XHT_card/uf2/THXCardMidi.uf2) build adds the LED 5 USB role diagnostic. This fallback remains the frozen hardware-passed MIDI rollback copy.
 
 Important USB note:
 
@@ -48,4 +48,4 @@ Important USB note:
 
 The non-MIDI fallback remains separate:
 
-[THXCard_fallback.uf2](/Users/adrianvos/coding/GitHub/XHT_card/THXCard_fallback.uf2)
+[THXCard_fallback.uf2](/Users/adrianvos/coding/GitHub/XHT_card/uf2/THXCard_fallback.uf2)
